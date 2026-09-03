@@ -5,10 +5,12 @@ namespace App\Imports;
 use App\Models\Ticket;
 use Maatwebsite\Excel\Concerns\ToModel;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
+use Maatwebsite\Excel\Concerns\WithValidation;
+use Maatwebsite\Excel\Concerns\SkipsEmptyRows;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
-class TicketsImport implements ToModel, WithHeadingRow
+class TicketsImport implements ToModel, WithHeadingRow, WithValidation, SkipsEmptyRows
 {
     public function model(array $row)
     {
@@ -30,17 +32,29 @@ class TicketsImport implements ToModel, WithHeadingRow
         ];
 
         try {
-            $apiKey = env('GEMINI_API_KEY');
+            $apiKey = config('services.gemini.api_key');
+            $model = config('services.gemini.model');
+
+            if (!$apiKey) {
+                return new Ticket([
+                    'customer_name' => $row['isim'],
+                    'message' => $message,
+                    'department' => $aiAnalysis['department'],
+                    'priority' => $aiAnalysis['priority'],
+                    'status' => 'Yeni',
+                ]);
+            }
+
             $response = Http::withHeaders([
                 'Content-Type' => 'application/json',
-            ])->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={$apiKey}", [
+            ])->post("https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}", [
                 'contents' => [
                     [
                         'parts' => [
                             [
                                 'text' => "Sen gelişmiş bir müşteri hizmetleri asistanısın. SADECE JSON formatında cevap ver.
 Kurallar:
-- department: 'Teknik Destek', 'Kargo', 'Muhasebe', 'İptal', 'Genel'
+- department: 'Teknik Destek', 'Kargo ve Teslimat', 'Muhasebe ve Fatura', 'İptal ve İade', 'Genel'
 - priority: 'Düşük', 'Orta', 'Yüksek', 'Acil'
 - order_number: Varsa yaz, yoksa null
 - amount: Tutar varsa sadece rakam (örnek: 1250.50), yoksa null
@@ -77,5 +91,21 @@ Müşteri Mesajı: " . $message
             'invoice_number' => $aiAnalysis['invoice_number'],
             'status'         => 'Yeni',
         ]);
+    }
+
+    public function rules(): array
+    {
+        return [
+            'isim' => ['required', 'string'],
+            'mesaj' => ['required', 'string'],
+        ];
+    }
+
+    public function customValidationMessages(): array
+    {
+        return [
+            'isim.required' => 'Excel dosyasında "isim" sütunu ve her satır için müşteri adı bulunmalıdır.',
+            'mesaj.required' => 'Excel dosyasında "mesaj" sütunu ve her satır için mesaj bulunmalıdır.',
+        ];
     }
 }

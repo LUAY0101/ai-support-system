@@ -27,6 +27,11 @@
                             ✅ {{ session('success') }}
                         </div>
                     @endif
+                    @if(session('warning'))
+                        <div class="alert alert-warning fw-bold text-center">
+                            {{ session('warning') }}
+                        </div>
+                    @endif
 
                     <!-- بداية الفورم -->
                     <!-- ملاحظة هامة: أضفنا enctype="multipart/form-data" لكي يسمح الفورم برفع الملفات -->

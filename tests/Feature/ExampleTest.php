@@ -16,4 +16,11 @@ class ExampleTest extends TestCase
 
         $response->assertStatus(200);
     }
+
+    public function test_admin_requires_authentication(): void
+    {
+        $response = $this->get('/admin');
+
+        $response->assertUnauthorized();
+    }
 }

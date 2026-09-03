@@ -187,10 +187,9 @@
                                 </td>
 
                                 <td>
-    <form action="{{ url('/admin/ticket/'.$ticket->id.'/status') }}" method="POST" class="m-0">
+    <form action="{{ url('/admin/tickets/'.$ticket->id.'/status') }}" method="POST" class="m-0">
         @csrf
-        <select n
-        ame="status" class="form-select form-select-sm rounded-pill fw-bold border-0 shadow-sm
+        <select name="status" class="form-select form-select-sm rounded-pill fw-bold border-0 shadow-sm
             {{ $ticket->status == 'Yeni' ? 'bg-primary text-white' : 
                ($ticket->status == 'İnceliyor' ? 'bg-info text-dark' : 
                ($ticket->status == 'Beklemede' ? 'bg-warning text-dark' : 'bg-success text-white')) }}" 

@@ -53,20 +53,31 @@ class TicketController extends Controller
 
         // 🔥 إرسال التذكرة إلى n8n
         try {
-            // ضع رابط الـ Webhook الخاص بك من n8n هنا
-            $n8nWebhookUrl = 'https://luayn8n.app.n8n.cloud/webhook-test/new-ticket'; 
-            
-            Http::post($n8nWebhookUrl, [
-                'ticket_id' => $ticket->id,
-                'customer_name' => $ticket->customer_name,
-                'department' => $ticket->department,
-                'priority' => $ticket->priority,
-                'order_number' => $ticket->order_number,
-                'message' => $ticket->message,
-            ]);
+            $n8nWebhookUrl = config('services.n8n.webhook_url');
+
+            if ($n8nWebhookUrl) {
+                $response = Http::timeout(10)->post($n8nWebhookUrl, [
+                    'ticket_id' => $ticket->id,
+                    'customer_name' => $ticket->customer_name,
+                    'department' => $ticket->department,
+                    'priority' => $ticket->priority,
+                    'order_number' => $ticket->order_number,
+                    'message' => $ticket->message,
+                ]);
+
+                if ($response->failed()) {
+                    Log::error('n8n Webhook Hatası: HTTP ' . $response->status());
+                }
+            }
         } catch (\Exception $e) {
             // في حال كان n8n مغلقاً، لا تعطل الموقع، فقط سجل الخطأ
             \Illuminate\Support\Facades\Log::error('n8n Connection Failed: ' . $e->getMessage());
+        }
+
+        if (empty($aiAnalysis)) {
+            return redirect()->back()
+                ->with('success', 'Talebiniz başarıyla alındı.')
+                ->with('warning', 'AI analizi kullanılamadığı için talebiniz varsayılan bilgilerle kaydedildi.');
         }
 
         return redirect()->back()->with('success', 'Talebiniz başarıyla alındı ve analiz edildi!');
@@ -74,10 +85,15 @@ class TicketController extends Controller
 
     private function analyzeTicketWithAI($message, $attachmentPath = null)
     {
-        $apiKey = env('GEMINI_API_KEY');
+        $apiKey = config('services.gemini.api_key');
+
+        if (!$apiKey) {
+            Log::warning('Gemini API anahtarı tanımlı değil; varsayılan ticket analizi kullanılacak.');
+            return [];
+        }
         
-        // التعديل الخرافي: استخدام الموديل الجديد الذي طلبته جوجل gemini-3.6-flash
-        $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=' . $apiKey;
+        $model = config('services.gemini.model');
+        $url = 'https://generativelanguage.googleapis.com/v1beta/models/' . $model . ':generateContent?key=' . $apiKey;
 
 $parts = [
             [
@@ -181,7 +197,7 @@ Müşteri Mesajı: " . $message
     public function updateStatus(Request $request, $id)
     {
         $request->validate([
-            'status' => 'required|string'
+            'status' => 'required|in:Yeni,İnceliyor,Beklemede,Çözüldü'
         ]);
 
         $ticket = Ticket::findOrFail($id);
