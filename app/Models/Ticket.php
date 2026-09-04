@@ -12,6 +12,7 @@ class Ticket extends Model
     protected $fillable = [
         'customer_name',
         'message',
+        'source',
         'attachment',
         'department',
         'priority',
@@ -21,5 +22,14 @@ class Ticket extends Model
         'amount',
         'document_date',
         'invoice_number',
+        'ai_analysis',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'ai_analysis' => 'array',
+            'document_date' => 'date',
+        ];
+    }
 }

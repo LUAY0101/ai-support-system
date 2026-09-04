@@ -80,6 +80,40 @@
             </div>
         </div>
 
+        <div class="row g-3 mb-4">
+            <div class="col-lg-6">
+                <div class="card shadow-sm border-0 h-100">
+                    <div class="card-body">
+                        <h5 class="card-title fw-bold">En çok talep gelen kanallar</h5>
+                        <div class="d-flex flex-wrap gap-2">
+                            @forelse($channelStats as $source => $total)
+                                <span class="badge bg-dark rounded-pill px-3 py-2">
+                                    {{ ucfirst($source) }}: {{ $total }}
+                                </span>
+                            @empty
+                                <span class="text-muted">Henüz kanal verisi yok.</span>
+                            @endforelse
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="card shadow-sm border-0 h-100">
+                    <div class="card-body">
+                        <h5 class="card-title fw-bold">Tekrarlanan şikayetler</h5>
+                        @forelse($repeatedComplaints as $complaint)
+                            <div class="d-flex justify-content-between gap-3 border-bottom py-2">
+                                <span>{{ Str::limit($complaint['message'], 70) }}</span>
+                                <span class="badge bg-secondary align-self-start">{{ $complaint['count'] }}</span>
+                            </div>
+                        @empty
+                            <span class="text-muted">Tekrarlanan şikayet bulunamadı.</span>
+                        @endforelse
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- شريط الفلترة -->
         <form action="{{ url('/admin') }}" method="GET" class="mb-4" style="background: #ffffff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
             <div class="row g-3">
@@ -105,6 +139,16 @@
                         <option value="Acil" {{ request('priority') == 'Acil' ? 'selected' : '' }}>Acil</option>
                     </select>
                 </div>
+                <div class="col-md-3">
+                    <select name="source" class="form-select">
+                        <option value="">Tüm Kaynaklar</option>
+                        @foreach(['web', 'whatsapp', 'telegram', 'email', 'instagram'] as $source)
+                            <option value="{{ $source }}" {{ request('source') == $source ? 'selected' : '' }}>
+                                {{ ucfirst($source) }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
                 <div class="col-md-3 d-flex gap-2">
                     <button type="submit" class="btn btn-primary w-100 fw-bold">Filtrele</button>
                     <a href="{{ url('/admin') }}" class="btn btn-secondary w-100 fw-bold">Temizle</a>
@@ -122,6 +166,7 @@
                                 <th>#ID</th>
                                 <th>Müşteri Adı</th>
                                 <th>Mesaj / Şikayet</th>
+                                <th>Kaynak</th>
                                 <th>Ek (Dosya)</th>
                                 <th>Departman (AI)</th>
                                 <th>Öncelik (AI)</th>
@@ -147,6 +192,9 @@
                                 </td>
                                 <td>{{ $ticket->customer_name }}</td>
                                 <td>{{ Str::limit($ticket->message, 40) }}</td>
+                                <td>
+                                    <span class="badge bg-dark rounded-pill">{{ ucfirst($ticket->source ?? 'web') }}</span>
+                                </td>
                                 <td>
                                     @if($ticket->attachment)
                                         <a href="{{ asset($ticket->attachment) }}" target="_blank" class="btn btn-sm btn-outline-info rounded-pill">

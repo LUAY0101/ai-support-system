@@ -39,6 +39,7 @@ class TicketsImport implements ToModel, WithHeadingRow, WithValidation, SkipsEmp
                 return new Ticket([
                     'customer_name' => $row['isim'],
                     'message' => $message,
+                    'source' => 'web',
                     'department' => $aiAnalysis['department'],
                     'priority' => $aiAnalysis['priority'],
                     'status' => 'Yeni',
@@ -83,12 +84,14 @@ Müşteri Mesajı: " . $message
         return new Ticket([
             'customer_name'  => $row['isim'],
             'message'        => $message,
+            'source'         => 'web',
             'department'     => $aiAnalysis['department'],
             'priority'       => $aiAnalysis['priority'],
             'order_number'   => $aiAnalysis['order_number'],
             'amount'         => $aiAnalysis['amount'],
             'document_date'  => $aiAnalysis['document_date'],
             'invoice_number' => $aiAnalysis['invoice_number'],
+            'ai_analysis'    => $aiAnalysis,
             'status'         => 'Yeni',
         ]);
     }

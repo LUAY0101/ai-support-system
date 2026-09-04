@@ -41,6 +41,7 @@ class TicketController extends Controller
         $ticket = Ticket::create([
             'customer_name' => $request->customer_name,
             'message' => $request->message,
+            'source' => 'web',
             'attachment' => $attachmentPath,
             'department' => $aiAnalysis['department'] ?? 'Genel',
             'priority' => $aiAnalysis['priority'] ?? 'Orta',
@@ -48,6 +49,7 @@ class TicketController extends Controller
             'amount' => $aiAnalysis['amount'] ?? null,
             'document_date' => $aiAnalysis['document_date'] ?? null,
             'invoice_number' => $aiAnalysis['invoice_number'] ?? null,
+            'ai_analysis' => $aiAnalysis ?: null,
             'status' => 'Yeni',
         ]);
 
@@ -61,8 +63,10 @@ class TicketController extends Controller
                     'customer_name' => $ticket->customer_name,
                     'department' => $ticket->department,
                     'priority' => $ticket->priority,
+                    'source' => $ticket->source,
                     'order_number' => $ticket->order_number,
                     'message' => $ticket->message,
+                    'ai_analysis' => $ticket->ai_analysis,
                 ]);
 
                 if ($response->failed()) {
@@ -81,6 +85,47 @@ class TicketController extends Controller
         }
 
         return redirect()->back()->with('success', 'Talebiniz başarıyla alındı ve analiz edildi!');
+    }
+
+    public function storeFromN8n(Request $request)
+    {
+        $configuredToken = config('services.n8n.api_token');
+        $providedToken = $request->bearerToken() ?: $request->header('X-N8N-Token');
+
+        if (!$configuredToken) {
+            return response()->json(['message' => 'n8n API token yapılandırılmamış.'], 503);
+        }
+
+        if (!$providedToken || !hash_equals($configuredToken, $providedToken)) {
+            return response()->json(['message' => 'Geçersiz API token.'], 401);
+        }
+
+        $validated = $request->validate([
+            'customer_name' => ['required', 'string', 'max:255'],
+            'message' => ['required', 'string'],
+            'source' => ['required', 'string', 'in:web,whatsapp,telegram,email,instagram'],
+            'department' => ['nullable', 'string', 'max:255'],
+            'priority' => ['nullable', 'string', 'in:Düşük,Orta,Yüksek,Acil'],
+            'ai_analysis' => ['nullable', 'array'],
+            'attachment' => ['nullable', 'string', 'max:2048'],
+            'order_number' => ['nullable', 'string', 'max:255'],
+            'amount' => ['nullable', 'numeric'],
+            'document_date' => ['nullable', 'date'],
+            'invoice_number' => ['nullable', 'string', 'max:255'],
+            'status' => ['nullable', 'string', 'in:Yeni,İnceliyor,Beklemede,Çözüldü'],
+        ]);
+
+        $ticket = Ticket::create([
+            ...$validated,
+            'department' => $validated['department'] ?? 'Genel',
+            'priority' => $validated['priority'] ?? 'Orta',
+            'status' => $validated['status'] ?? 'Yeni',
+        ]);
+
+        return response()->json([
+            'message' => 'Talep başarıyla kaydedildi.',
+            'ticket' => $ticket,
+        ], 201);
     }
 
     private function analyzeTicketWithAI($message, $attachmentPath = null)
@@ -175,6 +220,10 @@ Müşteri Mesajı: " . $message
             $query->where('priority', $request->priority);
         }
 
+        if ($request->filled('source')) {
+            $query->where('source', $request->source);
+        }
+
         if ($request->filled('search')) {
             $query->where(function($q) use ($request) {
                 $q->where('order_number', 'like', '%' . $request->search . '%')
@@ -191,7 +240,36 @@ Müşteri Mesajı: " . $message
             'cozuldu' => Ticket::where('status', 'Çözüldü')->count(),
         ];
 
-        return view('admin', compact('tickets', 'stats'));
+        $channelStats = Ticket::query()
+            ->selectRaw('source, count(*) as total')
+            ->groupBy('source')
+            ->orderByDesc('total')
+            ->pluck('total', 'source');
+
+        $repeatedComplaints = Ticket::query()
+            ->whereNotNull('message')
+            ->pluck('message')
+            ->map(function ($message) {
+                $normalized = preg_replace('/[^\p{L}\p{N}\s]/u', ' ', mb_strtolower($message));
+                return [
+                    'message' => trim(preg_replace('/\s+/', ' ', $normalized)),
+                    'original' => $message,
+                ];
+            })
+            ->filter(fn ($complaint) => $complaint['message'] !== '')
+            ->groupBy('message')
+            ->map(function ($complaints) {
+                return [
+                    'message' => $complaints->first()['original'],
+                    'count' => $complaints->count(),
+                ];
+            })
+            ->filter(fn ($complaint) => $complaint['count'] > 1)
+            ->sortByDesc('count')
+            ->take(5)
+            ->values();
+
+        return view('admin', compact('tickets', 'stats', 'channelStats', 'repeatedComplaints'));
     }
 
     public function updateStatus(Request $request, $id)
