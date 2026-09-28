@@ -55,8 +55,7 @@ class TicketController extends Controller
 
         // 🔥 إرسال التذكرة إلى n8n
         try {
-            $n8nWebhookUrl = config('services.n8n.webhook_url');
-
+            $n8nWebhookUrl = 'https://luayn8nproje.app.n8n.cloud/webhook-test/2f384f0c-cc6f-4456-8c71-bfed4724ba92';
             if ($n8nWebhookUrl) {
                 $response = Http::timeout(10)->post($n8nWebhookUrl, [
                     'ticket_id' => $ticket->id,
